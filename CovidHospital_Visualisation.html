@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Display a popup on hover</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.css" rel="stylesheet" />
+<style>
+	body { margin: 0; padding: 0; }
+	#map { position: absolute; top: 6.2%; bottom: 0; width: 100%;}
+	header {
+	  background-color: #FFFFFF;
+	  color: #ff6600
+;
+	}
+	div.scroll {
+                 margin:10px, 10px;
+                 padding:4px;
+                 background-color: white;
+                 width:100%;
+                 height: 100%;
+								 overflow-x: hidden;
+                 overflow-y: scroll;
+
+							 }
+</style>
+</head>
+<body>
+	<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.5.1/mapbox-gl-geocoder.min.js"></script>
+<link
+rel="stylesheet"
+href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.5.1/mapbox-gl-geocoder.css"
+type="text/css"
+/>
+<!-- Promise polyfill script required to use Mapbox GL Geocoder in IE 11 -->
+<script src="https://cdn.jsdelivr.net/npm/es6-promise@4/dist/es6-promise.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/es6-promise@4/dist/es6-promise.auto.min.js"></script>
+
+<style>
+.mapboxgl-popup {
+max-width: 400px;
+font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+}
+
+.map-overlay {
+        position: absolute;
+        width:25%;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+        background-color: #fff;
+        max-height: 100%;
+        overflow: hidden;
+    }
+
+    .map-overlay fieldset {
+        display: none;
+        background: #e6f2ff;
+        border: none;
+        padding: 10px;
+        margin: 0;
+    }
+
+    .map-overlay input {
+        display: block;
+        border: none;
+        width: 100%;
+        border-radius: 3px;
+        padding: 10px;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    .map-overlay .listing {
+        overflow: auto;
+        max-height: 100%;
+    }
+
+    .map-overlay .listing > * {
+        display: block;
+        padding: 5px 10px;
+        margin: 0;
+    }
+
+    .map-overlay .listing a {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        color: #404;
+        text-decoration: none;
+    }
+
+    .map-overlay .listing a:last-child {
+        border: none;
+    }
+
+    .map-overlay .listing a:hover {
+        background: #f0f0f0;
+}
+
+</style>
+<div id="map"></div>
+<header>
+  <h2 style="font-style:italic;margin: 2px;border: 5px solid aliceblue;"><strong><center>Map Visualisation Of COVID-19 In Visakhapatnam Area</center></strong</h2>
+</header>
+<div class="map-overlay">
+	<div class="scroll">
+	    <fieldset>
+
+			<dl>
+	    <ul style="list-style-type:circle;">
+			<li><dt style="color:#ff1a1a;font-style:italic;font-family:Rockwell;font-size:14px;"><b>Dedicated COVID Hospital</b></dt></li>
+			<dd>Provide Comprehensive care primarily for those who have been clinically assigned
+as severe</dd>
+			<li><dt style="color:#ff1a1a;font-style:italic;font-family:Rockwell;font-size:14px;"><b>COVID Health Care Centers</b></dt></li>
+			<dd>Provide Care for all cases that have been clinically assigned as moderate</dd>
+			<li><dt style="color:#ff1a1a;font-style:italic;font-family:Rockwell;font-size:14px;"><b>COVID Care Center</b></dt></li>
+			<dd>Provide Care for cases that have been clinically assigned as mild, or very mild
+cases or COVID suspect cases</dd>
+		</ul>
+			</dl>
+        <input
+            id="feature-filter"
+            type="text"
+            placeholder="Find hospital by name"
+        />
+    </fieldset>
+    <div id="feature-listing" class="listing"></div>
+</div>
+</div>
+<script>
+mapboxgl.accessToken = 'pk.eyJ1IjoibWFyeWxpa2hpdGhhIiwiYSI6ImNrZm01OTQ3czE3ZnUzMHFodWZscWk0czEifQ.0DC_Uub87ZpDG_1LFnL3Ag';
+
+var map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v11',
+  center: [83.2632, 17.7154],
+  zoom: 12
+});
+var popup = new mapboxgl.Popup({ offset: 25 })
+map.addControl(
+new MapboxGeocoder({
+accessToken: mapboxgl.accessToken,
+mapboxgl: mapboxgl
+})
+);
+
+// Holds visible facilty name(places) features for filtering
+    var places = [];
+            // Populate the popup and set its coordinates
+            // based on the feature found.
+	var filterEl = document.getElementById('feature-filter');
+	 var listingEl = document.getElementById('feature-listing');
+	 function renderListings(features) {
+			 var empty = document.createElement('p');
+			 // Clear any existing listings
+			 listingEl.innerHTML = '';
+			 if (features.length) {
+					 features.forEach(function (feature) {
+						 var prop=feature.properties;
+		 var item = document.createElement('a');
+		 item.textContent = prop.FaciltyName +' (' + prop.Category_type + ')';
+		 item.addEventListener('mouseover', function () {
+		// Highlight corresponding feature on the map
+		popup.setLngLat(feature.geometry.coordinates).setHTML('<h2>' + prop.FaciltyName + '</h2><h3 style="margin: 2px;border: 3px double blue;background-color:#e6f2ff;color:#ff6600"><center>' + prop.Category_type +'</center></h3><p>' + '<b>' + 'Address: </b>' + prop.Address + '</p>'+ '<h4>'+ prop.WebsiteLink + '</h4>'+ 'Phone no.: ' + prop.Ph  + '<br>' + '<p> OSM point id: ' + prop.osmptid +'</p>').addTo(map);
+
+		});
+
+
+
+					 listingEl.appendChild(item);
+					 });
+
+					 // Show the filter input
+            filterEl.parentNode.style.display = 'block';
+        } else if (features.length === 0 && filterEl.value !== '') {
+            empty.textContent = 'No results found';
+            listingEl.appendChild(empty);
+        } else {
+            empty.textContent ='Drag the map to populate results';
+            listingEl.appendChild(empty);
+
+            // Hide the filter input
+            filterEl.parentNode.style.display = 'none';
+
+            // remove features filter
+            map.setFilter('places', ['has', 'FaciltyName']);
+        }
+    }
+
+		function normalize(string) {
+	         return string.trim().toLowerCase();
+	     }
+
+	 			 function getUniqueFeatures(array, comparatorProperty) {
+	 			 var existingFeatureKeys = {};
+	 			 // Because features come from tiled vector data, feature geometries may be split
+	 			 // or duplicated across tile boundaries and, as a result, features may appear
+	 			 // multiple times in query results.
+	 			 var uniqueFeatures = array.filter(function (el) {
+	 					 if (existingFeatureKeys[el.properties[comparatorProperty]]) {
+	 							 return false;
+	 					 } else {
+	 							 existingFeatureKeys[el.properties[comparatorProperty]] = true;
+	 							 return true;
+	 					 }
+	 			 });
+
+			 return uniqueFeatures;
+	 }
+
+	 map.on('load', function() {
+	       map.loadImage(
+	         'https://upload.wikimedia.org/wikipedia/commons/1/18/Hospital_pointer.png',
+	         // Add an image to use as a custom marker
+	         function(error, image) {
+	           if (error) throw error;
+	           map.addImage('hospital', image);
+
+	           map.addSource('places', {
+	             'type': 'geojson',
+	             'data': {
+
+	               "type": "FeatureCollection",
+	                      "name": "covid_19_new",
+	                      "crs": {
+	                        "type": "name",
+	                        "properties": {
+	                          "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+	                        }
+	                      },
+	                      "features": [{
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 1,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Visakha Institute of Medical Sciences - Visakhapatnam",
+	                            "Type": "Govt Medical College",
+	                            "Category": 1,
+	                            "Website": "http:\/\/www.vimsvskp.com\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 5491436986,
+	                            "Address": "Visakha Institute Medical Sciences\nNH -16, Hanumanthavaka Junction,\nVisakhapatnam – 530 040, AP., India",
+	                            "Lat": 17.7593689,
+	                            "Long": 83.3293398,
+	                            "Category_type": "Dedicated COVID Hospital",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/5491436986",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.vimsvskp.com\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3293398, 17.7593689]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 2,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Gitam Institute Of Medical Sciences And Research&Visakhapatnam",
+	                            "Type": "Private Medical College",
+	                            "Category": 1,
+	                            "Website": "https:\/\/gimsr.gitam.edu\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787057245,
+	                            "Address": "GITAM Institute of Medical Sciences & Research\nGITAM\nRushikonda, \nVISAKHAPATNAM – 530 045. (A.P., India)",
+	                            "Lat": 17.7846774,
+	                            "Long": 83.3746555,
+	                            "Category_type": "Dedicated COVID Hospital",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787057245",
+	                            "WebsiteLink": "<a href=\"https:\/\/gimsr.gitam.edu\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3746555, 17.7846774]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 4,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "M B Multispeciality Hospitals&Visakhapatnam",
+	                            "Type": "Private Hospitals",
+	                            "Category": 2,
+	                            "Website": "https:\/\/mbhospitals.com\/",
+	                            "Ph": "080 7460 8203",
+	                            "OSM Status": "Doesn't Exist",
+	                            "osmptid": 7916820571,
+	                            "Address": "Plot:15B, APIIC Health City, Chinna Gadhili, Arilova, Visakhapatnam, Andhra Pradesh 530040",
+	                            "Lat": 17.7634873,
+	                            "Long": 83.3104973,
+	                            "Category_type": "COVID Health Care Centers",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7916820571",
+	                            "WebsiteLink": "<a href=\"https:\/\/mbhospitals.com\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3104973, 17.7634873]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 6,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "NRI Anil Neerukonda Hospital, Sangivalasa",
+	                            "Type": "Private Hospitals",
+	                            "Category": 2,
+	                            "Website": "http:\/\/anilneerukondahospital.com\/contactus",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787057192,
+	                            "Address": "Three Polamamba Temples, Sangivalasa, Tagarapuvalasa, Bheemunipatnam(M), Visakhapatnam(Dist), Andhra Pradesh - 531162",
+	                            "Lat": 17.921695,
+	                            "Long": 83.426394,
+	                            "Category_type": "COVID Health Care Centers",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787057192",
+	                            "WebsiteLink": "<a href=\"http:\/\/anilneerukondahospital.com\/contactus\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.426394, 17.921695]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 7,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Indus Hospital, Jagadamba Junction, Maharani Peta, Visakhapatnam",
+	                            "Type": "Private Hospitals",
+	                            "Category": 2,
+	                            "Website": "http:\/\/www.indushospital.com\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6768451188,
+	                            "Address": "Kgh Down Road, Maharanipeta, Kgh Down Road, KGH Down Rd, Jagadamba Junction, Visakhapatnam, Andhra Pradesh 530002\n",
+	                            "Lat": 17.7108601,
+	                            "Long": 83.3026153,
+	                            "Category_type": "COVID Health Care Centers",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6768451188",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.indushospital.com\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3026153, 17.7108601]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 8,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Gayatri Vidya Parishad Institute Of Health Care And Medical Technology&Visakhapatnam",
+	                            "Type": "Private Hospitals",
+	                            "Category": 2,
+	                            "Website": "http:\/\/www.gvpmc.in\/contact_us.php",
+	                            "Ph": "918912793741",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6751616374,
+	                            "Address": "GVP Institute of Health Care & Medical Technology\n6-25, Maridi valley, Marikavalasa Village,Madhurawada,\nVisakhapatnam - 530048",
+	                            "Lat": 17.8306776,
+	                            "Long": 83.3603686,
+	                            "Category_type": "COVID Health Care Centers",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6751616374",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.gvpmc.in\/contact_us.php\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3603686, 17.8306776]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 9,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "lions cancer hospital",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/lionscancerhospital.org\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6768386211,
+	                            "Address": "Seethammadhara North Extension,Visakhapatnam-530013",
+	                            "Lat": 17.7443962,
+	                            "Long": 83.3083713,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6768386211",
+	                            "WebsiteLink": "<a href=\"http:\/\/lionscancerhospital.org\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3083713, 17.7443962]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 10,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Surya Sri Hospital Private Ltd.&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787647634,
+	                            "Address": " 15 - 14 - 19 \/ 1, Maharanipeta, Krishna Nagar, Near District Collector's Office,  Visakhapatnam-530002, Andhra Pradesh, India",
+	                            "Lat": 17.708149,
+	                            "Long": 83.309857,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787647634",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.309857, 17.708149]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 11,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Padmaja Hospital&Gajuwaka",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6773613228,
+	                            "Address": "Door No 7-15-12, Gajuwaka, Visakhapatnam - 530026, Behinde Adhithya Junior College, Old Gajuwaka Junction",
+	                            "Lat": 17.6867743,
+	                            "Long": 83.203619,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6773613228",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.203619, 17.6867743]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 12,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Annapoorna Hopsital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.nhp.gov.in\/hospital\/annapoorna-hospital-visakhapatnam-andhra_pradesh",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6758686628,
+	                            "Address": "47 - 9 - 32 third Lane Dwaraka Nagar Visakhapatnam 530016 Vishakhapatnam , Visakhapatnam, Andhra Pradesh - 530016",
+	                            "Lat": 17.7273371,
+	                            "Long": 83.3047865,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6758686628",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.nhp.gov.in\/hospital\/annapoorna-hospital-visakhapatnam-andhra_pradesh\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3047865, 17.7273371]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 13,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "SAISPOORTHY HOSPITAL",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787647634,
+	                            "Address": "#3rd Lane, Dwaraka Nagar, Visakhapatnam-16",
+	                            "Lat": 17.708149,
+	                            "Long": 83.309857,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787647634",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.309857, 17.708149]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 14,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Sevenhills Hospitals Ltd&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.sevenhillshospital.com\/contact-us.html",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7969038055,
+	                            "Address": "Rockdale Layout,\nWaltair Main Road,\nVisakhapatnam – 530002",
+	                            "Lat": 17.7173631,
+	                            "Long": 83.3094245,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7969038055",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.sevenhillshospital.com\/contact-us.html\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3094245, 17.7173631]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 15,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Omni Rk Hospital A Unit Of Incor Hospitals Vizag Pvt Ltd&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/omnihospitals.in\/vizag\/",
+	                            "Ph": "8913080300",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6789549353,
+	                            "Address": "Waltair Main Rd, Opp Lions Club Of Visakhapatnam, Ram Nagar, Visakhapatnam, Andhra Pradesh 530002",
+	                            "Lat": 17.7186287,
+	                            "Long": 83.3116168,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6789549353",
+	                            "WebsiteLink": "<a href=\"https:\/\/omnihospitals.in\/vizag\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3116168, 17.7186287]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 16,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Anbeach Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787647588,
+	                            "Address": "Door No. 15\/9\/13-24, R. K Beach Road Karimnagar Maharanipeta,Visakhapatnam, Andhra Pradesh - 530002\n",
+	                            "Lat": 17.712782,
+	                            "Long": 83.319868,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787647588",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.319868, 17.712782]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 18,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "VENKATARAMA HOSPITAL",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.venkataramahospital.com\/contact.html",
+	                            "Ph": "0891-669 2104",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6761017583,
+	                            "Address": " Near, 47-7-43, 4th line, Dwarka nagar, Nehru Bazar, Diamond Park Rd, Dondaparthy, Visakhapatnam, Andhra Pradesh 530016.",
+	                            "Lat": 17.7278327,
+	                            "Long": 83.3031356,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6761017583",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.venkataramahospital.com\/contact.html\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3031356, 17.7278327]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 19,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Suraksha Health Park Private Limited&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.surakshahealthpark.com\/",
+	                            "Ph": "91-891-6646666",
+	                            "OSM Status": "Doesn't Exist",
+	                            "osmptid": 7944554398,
+	                            "Address": "38-40-42 \/ 2, 104, Main Road, Oppo. Lord Hanuman temple, Visakhapatnam, Andhra Pradesh - 530018",
+	                            "Lat": 17.7414111,
+	                            "Long": 83.2430411,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7944554398",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.surakshahealthpark.com\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2430411, 17.7414111]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 21,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "AH-PADERU(T)",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": null,
+	                            "osmptid": 7951559889,
+	                            "Address": "Area Hospital, Paderu, Andhra Pradesh 531029",
+	                            "Lat": 18.0808258,
+	                            "Long": 82.6736203,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7951559889",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [82.6736203, 18.0808258]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 22,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Aditya Multi Care Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787647680,
+	                            "Address": "Door No 18-1-33, Maharanipeta, Visakhapatnam - 530002, Opposite KGH Gate \n",
+	                            "Lat": 17.7100474,
+	                            "Long": 83.3046802,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787647680",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3046802, 17.7100474]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 23,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "District Hospital Anakapalli",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/covid.icmr.org.in\/index.php\/15-government-laboratories\/340-district-hospital-anakapalle",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7114008093,
+	                            "Address": "District Hospital, SVR Nilayam, 16-1-3-2, Kota St, Anakapalle, Visakhapatnam, Andhra Pradesh 531001, India",
+	                            "Lat": 17.6845257,
+	                            "Long": 83.0067163,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7114008093",
+	                            "WebsiteLink": "<a href=\"https:\/\/covid.icmr.org.in\/index.php\/15-government-laboratories\/340-district-hospital-anakapalle\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.0067163, 17.6845257]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 24,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Star Pinnacle Heart Centre Pvt Ltd&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.starpinnacle.in\/contact.html",
+	                            "Ph": " 7337 333 777",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7931043211,
+	                            "Address": "Chinna Gadhili, Hanumanthavaka, Visakhapatnam, Andhra Pradesh 530040\n",
+	                            "Lat": 17.7632652,
+	                            "Long": 83.3078391,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7931043211",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.starpinnacle.in\/contact.html\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3078391, 17.7632652]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 25,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Ms Mahatma Gandhi Cancer Hospital And Research Institute&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "www.mgcancerhospital.com",
+	                            "Ph": "-891- 287 8787, 255 1811",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6798025921,
+	                            "Address": "Plot No:1, Sector:7, MVP Colony, Visakhapatnam, Andhra Pradesh 530017",
+	                            "Lat": 17.7435334,
+	                            "Long": 83.335583,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6798025921",
+	                            "WebsiteLink": "<a href=\"www.mgcancerhospital.com\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.335583, 17.7435334]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 27,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Homi Bhabha Cancer Hospital And Research Centre",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/homi-bhabha-cancer-hospital-research-centre-aganampudi.business.site\/",
+	                            "Ph": "089128 71561",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7934165413,
+	                            "Address": "Marripalem, Aganampudi Village, Gajuvaka Mandalam\nNational Highway 16\nVisakhapatnam, Andhra Pradesh 530053\nIndia\n",
+	                            "Lat": 17.6897604,
+	                            "Long": 83.1144152,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7934165413",
+	                            "WebsiteLink": "<a href=\"https:\/\/homi-bhabha-cancer-hospital-research-centre-aganampudi.business.site\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.1144152, 17.6897604]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 28,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Abc Hospitals&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6768332127,
+	                            "Address": "# 16-1-13, Kgh To Beach Down, Opp. Coastak Battery, Maharani Peth, Visakhapatnam, Andhra Pradesh - 530002",
+	                            "Lat": 17.7061715,
+	                            "Long": 83.3092725,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6768332127",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3092725, 17.7061715]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 30,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "St Anns Jubilee Memorial Hospital&Malkapuram",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7999688946,
+	                            "Address": "Door No 62-2-106, Malkapuram Visakhapatnam, Visakhapatnam - 530011",
+	                            "Lat": 17.6843531,
+	                            "Long": 83.2377236,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7999688946",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2377236, 17.6843531]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 31,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Lions District 324 C1 Cancer Treatment And Research Center&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6768386211,
+	                            "Address": "Seethammadhara (N.E.), Visakhapatnam, Visakhapatnam, Andhra Pradesh - 530020",
+	                            "Lat": 17.7443962,
+	                            "Long": 83.3083713,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6768386211",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3083713, 17.7443962]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 33,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "PADMAJA HOSPITAL",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 2332948921,
+	                            "Address": "Seethammadhara, Visakhapatnam - 530013, Seethammadhara Junction, Beside Alluramalinga Statue ",
+	                            "Lat": 17.7436298,
+	                            "Long": 83.3146125,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/2332948921",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3146125, 17.7436298]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 35,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Lg Hospital,Vishakhapatnam&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787647591,
+	                            "Address": "17-1-17, Dr.Mangamm Hospital Building ,Opp KGH Outgate, KGH Down Rd, Maharani Peta, Visakhapatnam, Andhra Pradesh 530002",
+	                            "Lat": 17.7100946,
+	                            "Long": 83.3045397,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787647591",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3045397, 17.7100946]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 36,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "ST ANNS JM HOSPITAL",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7999688946,
+	                            "Address": "Door No 62-2-106, Malkapuram Visakhapatnam, Visakhapatnam - 530011",
+	                            "Lat": 17.6843531,
+	                            "Long": 83.2377236,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7999688946",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2377236, 17.6843531]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 37,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Smilecare Multispeciality Durga Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 4267548789,
+	                            "Address": "# 36-91-108, Urvasi Junction Kancharapalem Visakhapatnam-8         ",
+	                            "Lat": 17.7362275,
+	                            "Long": 83.2713316,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/4267548789",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2713316, 17.7362275]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 38,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Kims Icon Hospital(A Unit Of Icon Krishi Institute Of Medical Sciences(P)Ltd)&Sheela Nagar",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.kimshospitals.com\/vizag\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787647608,
+	                            "Address": "Iconkrishi Institute of Medical Sciences Private Limited # 32-11-02, Sheela Nagar, BHPV Post, Vishakhapatnam,\nVisakhapatnam - 530026,\nAndhra Pradesh, India.",
+	                            "Lat": 17.7141817,
+	                            "Long": 83.1956548,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787647608",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.kimshospitals.com\/vizag\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.1956548, 17.7141817]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 39,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Vasugan Medical Specialities Pvt Ltd Indus Hospital- Vizag&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.indushospital.com\/",
+	                            "Ph": "984 8724 365, 991 2222 456",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6768451188,
+	                            "Address": "Kgh Down Road, Maharanipeta, Kgh Down Road, KGH Down Rd, Jagadamba Junction, Visakhapatnam, Andhra Pradesh 530002",
+	                            "Lat": 17.7108601,
+	                            "Long": 83.3026153,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6768451188",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.indushospital.com\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3026153, 17.7108601]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 40,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "SURAKHA HEALTH PARK PVT LTD",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.surakshahealthpark.com\/",
+	                            "Ph": "91-891-6646666",
+	                            "OSM Status": "Doesn't Exist",
+	                            "osmptid": 7944554398,
+	                            "Address": "38-40-42 \/ 2, 104, Main Road, Oppo. Lord Hanuman temple, Visakhapatnam, Andhra Pradesh - 530018",
+	                            "Lat": 17.7414111,
+	                            "Long": 83.2430411,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7944554398",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.surakshahealthpark.com\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2430411, 17.7414111]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 41,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Ramsaranya Hospitals Pvt Ltd Unit Ii&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Doesn't Exist",
+	                            "osmptid": 7951547049,
+	                            "Address": "14-37-33B, Beside Vijaya Medical Centre, Krishna Nagar, Visakhapatnam-530002, Andhra Pradesh, India",
+	                            "Lat": 17.7097535,
+	                            "Long": 83.3106734,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7951547049",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3106734, 17.7097535]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 42,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Hcg Pinnacle Cancer Centre&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.hcgoncology.com\/hospital_profiles\/hcg-cancer-centre-visakhapatnam",
+	                            "Ph": "-",
+	                            "OSM Status": "Doesn't Exist",
+	                            "osmptid": 7930495900,
+	                            "Address": "APIIC Health City, Chinnagadili, Arilova\n530040 Vishakhapatnam, Andhra Pradesh, India",
+	                            "Lat": 17.7638753,
+	                            "Long": 83.3057236,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7930495900",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.hcgoncology.com\/hospital_profiles\/hcg-cancer-centre-visakhapatnam\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3057236, 17.7638753]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 43,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Visakha Hospitals And Diagnostics Ltd Care Hospital Iii&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Doesn't Exist",
+	                            "osmptid": 7951595809,
+	                            "Address": "A.S.Raja Complex,10-50-11\/5,Waltair Main Road,Ramnagarmaharanipeta",
+	                            "Lat": 17.7202856,
+	                            "Long": 83.3130073,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7951595809",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3130073, 17.7202856]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 44,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "SR HOSPITAL",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/srhospitals.com\/contactus.html",
+	                            "Ph": "(91)81427 61111,\n(91) 82979 52222, 0891 - 2520822, 2521178",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6761020424,
+	                            "Address": "Rythu Bazar Rd, Tailors Colony, Gopalapatnam, Simhachalam, Visakhapatnam, Andhra Pradesh 530027",
+	                            "Lat": 17.752968,
+	                            "Long": 83.2173438,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6761020424",
+	                            "WebsiteLink": "<a href=\"http:\/\/srhospitals.com\/contactus.html\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2173438, 17.752968]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 45,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Raghavendra Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.diagnosticcentres.in\/diagnostic-centres\/andhra-pradesh\/visakhapatnam\/raghavendra-hospital.html",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6770856512,
+	                            "Address": "National Highway 5, Near Port Stadium, Balayya Sastry Layout Akkayyapalem, Visakhapatnam - 530016\n",
+	                            "Lat": 17.739964,
+	                            "Long": 83.3041066,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6770856512",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.diagnosticcentres.in\/diagnostic-centres\/andhra-pradesh\/visakhapatnam\/raghavendra-hospital.html\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3041066, 17.739964]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 47,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Vijetha Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.vijethahospitalvizag.com\/contact.php",
+	                            "Ph": "91 92466 55454\n\n",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6761079196,
+	                            "Address": "# 18-1-15,16, KGH Down, Near KGH Down Road, KGH Down, Maharani Peta, Visakhapatnam, Andhra Pradesh 530002",
+	                            "Lat": 17.7106199,
+	                            "Long": 83.3030283,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6761079196",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.vijethahospitalvizag.com\/contact.php\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3030283, 17.7106199]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 48,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "USHA PRIME MULTI SPECIALITY HOSPITAL A DIVISION OF CHILUKURI HEALTHCARE PVT LTD",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.ushaprime.com\/contacts.php",
+	                            "Ph": "08924-224848, +91 7093334456",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 7787449720,
+	                            "Address": "#12-4-6\/1, Pudimadaka Road, Beside IOB Bank, Anakapalle, Visakhapatnam - 531001",
+	                            "Lat": 17.687618,
+	                            "Long": 83.001744,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/7787449720",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.ushaprime.com\/contacts.php\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.001744, 17.687618]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 49,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Queens Nri Hospitals&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/www.queensnrihospital.com\/contactus.php",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 4635870145,
+	                            "Address": "Queen's NRI Hospital\nD.No, 50-53-14, Gurudwara Rd, Balayya Sastri Layout, Seethammadara, Visakhapatnam, Andhra Pradesh 530013",
+	                            "Lat": 17.7404353,
+	                            "Long": 83.3080536,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/4635870145",
+	                            "WebsiteLink": "<a href=\"https:\/\/www.queensnrihospital.com\/contactus.php\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3080536, 17.7404353]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 50,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Dr Demudubabu Kamala Nursing Home&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": " www.drdemudubabuboddu.com",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6801191501,
+	                            "Address": "Kamala Nursing Home, Marripalem Main Rd, FCI Nagar, Marripalem, Visakhapatnam, Andhra Pradesh 530018, India",
+	                            "Lat": 17.7403127,
+	                            "Long": 83.2509305,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6801191501",
+	                            "WebsiteLink": "<a href=\" www.drdemudubabuboddu.com\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.2509305, 17.7403127]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 51,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "KALA HOSPITAL",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "http:\/\/www.kalahospitals.com\/contactus.html",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 4896583363,
+	                            "Address": "Dr. P.V. Ramana Murthy\nDoor No 47-1-104, 6th Lane,\nDwaraka Nagar, Visakhapatnam\nAndhrapradesh - 500 016,\n",
+	                            "Lat": 17.7288521,
+	                            "Long": 83.3056846,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/4896583363",
+	                            "WebsiteLink": "<a href=\"http:\/\/www.kalahospitals.com\/contactus.html\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3056846, 17.7288521]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 52,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Venkatarama Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6761017583,
+	                            "Address": "H.No: 47-7-43, 4th line, Dwaraka Nagar, Nehru Bazar, Diamond Park Road, Dondaparthy",
+	                            "Lat": 17.7278327,
+	                            "Long": 83.3031356,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6761017583",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3031356, 17.7278327]
+	                          }
+	                        },
+
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 54,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Pradhama Multi Speciality Hospitals And Reasearch Institute Ltd&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": null,
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6711912481,
+	                            "Address": "1-1-83, Venkojipalem, MVP Colony\nLandmark: Near Petrol Bunk\nMVP Colony, Visakhapatnam",
+	                            "Lat": 17.7478898,
+	                            "Long": 83.3320567,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6711912481",
+	                            "WebsiteLink": "No Official Website"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3320567, 17.7478898]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 55,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Care Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/carehospitals.com\/hospitals\/visakhapatnam-maharanipeta\/#:~:text=CARE%20Hospitals%2C%20Visakhapatnam%2C%20is%20a,ray%20Lab%20and%20ultrasound%20facilities.https:\/\/carehospitals.com\/hospitals\/visakhapatnam-ramnagar\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6773652312,
+	                            "Address": "CARE Multi-Specialty Hospital & Trauma Centre – Maharanipeta\nKGH Road, Maharanipeta\nVisakhapatnam – 530002\n\n",
+	                            "Lat": 17.7097505,
+	                            "Long": 83.3054544,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6773652312",
+	                            "WebsiteLink": "<a href=\"https:\/\/carehospitals.com\/hospitals\/visakhapatnam-maharanipeta\/#:~:text=CARE%20Hospitals%2C%20Visakhapatnam%2C%20is%20a,ray%20Lab%20and%20ultrasound%20facilities.https:\/\/carehospitals.com\/hospitals\/visakhapatnam-ramnagar\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3054544, 17.7097505]
+	                          }
+	                        },
+	                        {
+	                          "type": "Feature",
+	                          "properties": {
+	                            "Sl.No.": 56,
+	                            "District Name": "VISAKHAPATANAM",
+	                            "FaciltyName": "Care Hospital&Visakhapatnam",
+	                            "Type": "Hospital",
+	                            "Category": 3,
+	                            "Website": "https:\/\/carehospitals.com\/hospitals\/visakhapatnam-maharanipeta\/#:~:text=CARE%20Hospitals%2C%20Visakhapatnam%2C%20is%20a,ray%20Lab%20and%20ultrasound%20facilities.https:\/\/carehospitals.com\/hospitals\/visakhapatnam-ramnagar\/",
+	                            "Ph": "-",
+	                            "OSM Status": "Exists Already",
+	                            "osmptid": 6804932700,
+	                            "Address": "CARE Super Specialty Hospital – Ramnagar\nWaltair Main Road, Ramnagar\nVisakhapatnam – 530002",
+	                            "Lat": 17.7203686,
+	                            "Long": 83.3127339,
+	                            "Category_type": "COVID Care Center",
+	                            "OSM url": "https:\/\/www.openstreetmap.org\/node\/6804932700",
+	                            "WebsiteLink": "<a href=\"https:\/\/carehospitals.com\/hospitals\/visakhapatnam-maharanipeta\/#:~:text=CARE%20Hospitals%2C%20Visakhapatnam%2C%20is%20a,ray%20Lab%20and%20ultrasound%20facilities.https:\/\/carehospitals.com\/hospitals\/visakhapatnam-ramnagar\/\" target=\"_blank\">Website<\/a>"
+	                          },
+	                          "geometry": {
+	                            "type": "Point",
+	                            "coordinates": [83.3127339, 17.7203686]
+	                          }
+	                        }
+	                      ]
+	                    }
+	  });
+
+	             // Add a layer showing the places.
+	 //Styling the icon
+	             map.addLayer({
+	               'id': 'places',
+	               'type': 'symbol',
+	               'source': 'places',
+	               'layout': {
+	                 'icon-image': 'hospital',
+	                 'icon-size': 0.1
+	               }
+	             });
+	           });
+	map.on('moveend', function () {
+					 var features = map.queryRenderedFeatures({ layers: ['places'] });
+
+					 if (features) {
+							 var uniqueFeatures = getUniqueFeatures(features, 'FaciltyName');
+							 // Populate features for the listing overlay.
+							 renderListings(uniqueFeatures);
+
+							 // Clear the input container
+							 filterEl.value = '';
+
+							 // Store the current features in sn `airports` variable to
+							 // later use for filtering on `keyup`.
+							 places = uniqueFeatures;
+					 }
+			 });
+
+			 // Change the cursor to a pointer when the mouse is over the places layer.
+			 map.on('mouseenter', 'places', function () {
+					 map.getCanvas().style.cursor = 'pointer';
+					 popup.setLngLat(feature.geometry.coordinates).setHTML('<h2>' + feature.properties.FaciltyName + '</h2><h3><center>' + feature.properties.Category_type +'</center></h3><p>' + '<b>' + 'Address: </b>' + feature.properties.Address + '</p>'+ '<h4>'+ feature.properties.WebsiteLink + '</h4>'+ 'Phone no.: ' + feature.properties.Ph  + '<br>' + '<p> OSM point id: ' + feature.properties.osmptid +'</p>').addTo(map);
+
+ 					});
+
+			// Change it back to a pointer when it leaves.
+			map.on('mouseleave', 'places', function () {
+					map.getCanvas().style.cursor = '';
+					popup.remove();
+				});
+			 filterEl.addEventListener('keyup', function (e) {
+					 var value = normalize(e.target.value);
+
+					 // Filter visible features that don't match the input value.
+					 var filtered = places.filter(function (feature) {
+						 var FaciltyName = normalize(feature.properties.FaciltyName);
+							 return FaciltyName.indexOf(value) > -1
+					 });
+					 // Populate the sidebar with filtered results
+					            renderListings(filtered);
+
+					            // Set the filter to populate features into the layer.
+					            if (filtered.length) {
+					                map.setFilter('places', [
+					                    'match',
+					                    ['get', 'FaciltyName'],
+					                    filtered.map(function (feature) {
+					                        return feature.properties.FaciltyName;
+					                    }),
+					                    true,
+					                    false
+					                ]);
+					            }
+					        });
+									map.on('click', 'places', function(e) {
+			 			 			// Change the cursor style as a UI indicator.
+			 			 			map.getCanvas().style.cursor = 'pointer';
+
+			 			 			var coordinates = e.features[0].geometry.coordinates.slice();
+			 			 			var FaciltyName = e.features[0].properties.FaciltyName;
+			 			 			var Address = e.features[0].properties.Address;
+			 			 			var WebsiteLink= e.features[0].properties.WebsiteLink;
+			 			 			var  osmptid= e.features[0].properties.osmptid;
+			 			 			var Ph= e.features[0].properties.Ph;
+									var Category_type=e.features[0].properties.Category_type;
+
+			 			 			// Ensure that if the map is zoomed out such that multiple
+			 			 			// copies of the feature are visible, the popup appears
+			 			 			// over the copy being pointed to.
+			 			 			while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+			 			 				coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+			 			 			}
+									popup.setLngLat(coordinates).setHTML('<h2>' + FaciltyName + '</h2><h3 style="margin: 2px;border: 3px double blue;background-color:#e6f2ff;color:#ff6600"><center>' + Category_type +'</center></h3><p>' + '<b>' + 'Address: </b>' + Address + '</p>'+ '<h4>'+ WebsiteLink + '</h4>'+ 'Phone no.: ' + Ph  + '<br>' + '<p> OSM point id: ' + osmptid +'</p>').addTo(map);
+
+								 });
+
+
+
+									// Call this function on initialization
+									        // passing an empty array to render an empty state
+									        renderListings([]);
+
+				 });
+
+
+
+				 // Add zoom and rotation controls to the map.
+         map.addControl(new mapboxgl.NavigationControl());
+</script>
+</body>
+</html>
