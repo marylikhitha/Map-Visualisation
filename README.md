@@ -16,6 +16,8 @@ Firstly, <b>Data collection</b> of all the matching hospitals of the list with O
 Secondly, <b>Data formatting</b> The OSM point data was converted in a geojson and also compiled with attributes such as Hospital category, address, phone number, website, OSM id etc. A simple overpass helped to export in geojson and compilation of attributed did involve some additional effort from QGIS.
 
 Thirdly, <b>Designing a page :O </b>For a beginner [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/api/) would be a good start. The documentation is very informative and understandable. The examples solved the majority of the key features we've wanted to have in the page.
+For hosting the website freely,we have used the Google Firebase and created a static Website
+https://mapvisualisationcovidhospitals.web.app/
 
 ![Image](https://github.com/marylikhitha/Map-Visualisation/blob/main/link1.png)
 ----------
